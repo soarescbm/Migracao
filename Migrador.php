@@ -294,4 +294,34 @@ class Migrador
          }
         
     }
+    
+    public function addAlunos(){
+        
+        $alunos = array(
+            'ed47_i_codigo' => '',
+            'ed47_v_nome' => '',
+            'ed47_v_ender' => '',
+            'ed47_c_numero' => '',
+            'ed47_v_compl' => '',
+            'ed47_v_bairro' => '',
+            'ed47_v_cep' => '',
+            'ed47_c_raca' => '',
+            'ed47_v_cxpostal' => '',
+            'ed47_v_telef' => '',
+            'ed47_d_cadast' => '',
+            'ed47_v_ident' => '',
+            'ed47_i_login' => '',
+            'ed47_c_nomeresp' => '',
+            'ed47_c_emailresp' => '',
+            'ed47_c_atenddifer' => '',
+            'ed47_t_obs' => '',
+            'ed47_c_transporte' => '',
+            'ed47_c_zona' => '',
+            'ed47_c_certi' => '',
+            'ed47_i_login' => '',
+            'ed47_i_login' => '',
+           
+            
+        );
+    }
 }
