@@ -1,0 +1,39 @@
+; Arquivo de configurações
+
+; Configurações do e-Ciddade
+; Código da Instituição no sistema
+instituicao.codigo = "1" 
+
+; Configurações do Orgão
+orgao.exercicio = "2011"
+orgao.codigo = "10" 
+orgao.descricao = "SECRETARIA MUNICIPAL DE EDUCAÇÃO" 
+orgao.tribunal = "3" 
+
+; Municipio Default
+educacenso.uf = "27"
+educacenso.municipio = "2700300"
+educacenso.distrito = "5"
+
+; Configurações da Unidade
+unidade.codigo = "10"
+orgao.tribunal = "3" 
+
+; Variação dos código dos departamento para não dar conflitos com os dapartamentos existentes
+departamento.codigo_variacao = "10"
+
+; Configurações do banco de dados do e-cidade
+ecidade.db.adapter = "pdo_pgsql"
+ecidade.db.params.host = "localhot"
+ecidade.db.params.username = "ecidade"
+ecidade.db.params.password = "ecidade"
+ecidade.db.params.dbname = "e-cidade_full"
+ecidade.db.params.charset = "latin1"
+
+; Configurações do banco de dados do i-educar
+ieducar.db.adapter = "pdo_pgsql"
+ieducar.db.params.host = "localhost"
+ieducar.db.params.username = "ieducar"
+ieducar.db.params.password = "ieducar"
+ieducar.db.params.dbname = "i-educar_full"
+ieducar.db.params.charset = "latin1"
