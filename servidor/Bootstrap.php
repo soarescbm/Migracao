@@ -1,6 +1,6 @@
 <?php
 
-include_once 'Migrador.php';
+include_once 'Servidor.php';
 
 // Define path to application directory
 defined('APPLICATION_PATH')
@@ -8,17 +8,15 @@ defined('APPLICATION_PATH')
 
 
 set_include_path(implode(PATH_SEPARATOR, array(
-    realpath(APPLICATION_PATH . '/lib'),
+    realpath(APPLICATION_PATH . '/../lib'),
     get_include_path(),
 )));
 
-
 require_once 'Zend/Loader/Autoloader.php';
 Zend_Loader_Autoloader::getInstance();
-Zend_Filter::addDefaultNamespaces('Extra_Filter');
 
 
-$config = new Zend_Config_Ini(APPLICATION_PATH.'/config/config.ini');
+$config = new Zend_Config_Ini(APPLICATION_PATH.'/config.ini');
 
-$app = new Migrador($config);
+$app = new Servidor($config);
 $app->run();

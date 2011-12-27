@@ -33,14 +33,21 @@ class Migrador
        //$this->addDepartamentos();
        //$this->addEscolas();
        //$this->addAlunos();
+       $this->addCursos();
+       //$this->addSSdervidor();
        
     }
+    /*
+     * Setter as conexões com os bancos de dados
+     */
     public function setDb()
     {
-        
         $this->db_ecidade = Zend_Db::factory($this->config->ecidade->db);
         $this->db_ieducar = Zend_Db::factory($this->config->ieducar->db);
     }
+    /**
+     * Testa as conexões com os bancos de dados
+     */
     public function testConnection()
     {
         try {
@@ -60,7 +67,16 @@ class Migrador
         
        
     }
-    
+    /**
+     * Inicia a função de banco do banco de dados do e-cidade fc_startsession()
+     */
+    public function startSessionDb()
+    {
+        $this->db_ecidade->query('select fc_startsession();');
+    }
+    /*
+     * Imprime o cabeçalho do scritp de migração
+     */
     public function info()
     {   
         echo "\033[0;32m".PHP_EOL;
@@ -70,25 +86,12 @@ class Migrador
         echo "-----------------------------------------------------------------------------". PHP_EOL . PHP_EOL;
         echo "\033[0m";
     }
-    
+    /**
+     * A
+     */
     public function addDepartamentos()
     {  
-         //Cada escola é um departamento no e-cidade
-         //Colunas da tabela db_depart
-         $departamento = array(
-             'coddepto' =>'', 
-             'descrdepto' =>'', 
-             'instit' =>'', 
-         );
-         //Colunas da tabela db_departorg - Departamento - Orgão
-         $departamento_orgao = array (
-             'db01_coddepto' => '',
-             'db01_anousu' => $this->config->orgao->exercicio,
-             'db01_orgao' =>  $this->config->orgao->codigo,
-             'db01_unidade' => $this->config->unidade->codigo,
-
-         );
-         
+        
          //Select das escolas do i-Educar
          $select = new Zend_Db_Select($this->db_ieducar);
          $select->from(array('a'=>'escola'), array('a.cod_escola', 'a.ref_cod_escola_rede_ensino', 'a.ref_cod_escola_localizacao', 'a.sigla'), 'pmieducar')
@@ -97,12 +100,13 @@ class Migrador
                  ->order('a.cod_escola');
          $result = $this->db_ieducar->fetchAll($select);
         
+         //Interação
          foreach ($result  as $r){
-             $r['sigla'] = Zend_Filter::filterStatic($r['sigla'] ,'StringToUpper');
+             $r['nm_escola'] = Zend_Filter::filterStatic($r['nm_escola'] ,'FullStringToUpper');
              if(substr($r['sigla'], 0, 1) == 'C'){
-                 $descricao = 'CRECHE - '.$r['sigla'];
+                 $descricao = $r['nm_escola'];
              }else {
-                 $descricao = 'ESCOLA - '.$r['sigla'];
+                 $descricao = $r['nm_escola'];
              }
             
              $cod_depart = $r['cod_escola'] + (int)$this->config->departamento->codigo_variacao;
@@ -124,7 +128,7 @@ class Migrador
            try {
                $resultado = $this->db_ecidade->insert('configuracoes.db_depart', $departamento);
                $resultado = $this->db_ecidade->insert('configuracoes.db_departorg',  $departamento_orgao );
-               $this->showMessage('Departamento '. $r['sigla'].'-'.$cod_depart. ' criado.',1);
+               $this->showMessage('Departamento - '. $descricao.'-'.$cod_depart. ' adicionado.',1);
            } catch (Zend_Db_Exception $e){
                $this->showMessage($e->getMessage(),2);
                exit;
@@ -139,13 +143,13 @@ class Migrador
             'o40_orgao' => $this->config->orgao->codigo,
             'o40_instit' => $this->config->instituicao->codigo,
             'o40_codtri' => $this->config->orgao->tribunal,
-            'o40_descr' => Zend_Filter::filterStatic($this->config->orgao->descricao,'StringToUpper'),
+            'o40_descr' => Zend_Filter::filterStatic($this->config->orgao->descricao,'FullStringToUpper'),
 
         );
         
        try {
            $resultado = $this->db_ecidade->insert('orcamento.orcorgao', $orgao);
-           $this->showMessage('Orgao criado.',1);
+           $this->showMessage('Orgao adicionado - '.Zend_Filter::filterStatic($this->config->orgao->descricao,'FullStringToUpper'),1);
        } catch (Zend_Db_Exception $e){
            $this->showMessage($e->getMessage(),2);
            exit;
@@ -162,7 +166,7 @@ class Migrador
             'o41_orgao' => $this->config->orgao->codigo,
             'o41_unidade' => $this->config->unidade->codigo,
             'o41_codtri' => $this->config->orgao->tribunal,
-            'o41_descr' => Zend_Filter::filterStatic($this->config->orgao->descricao,'StringToUpper'),
+            'o41_descr' => Zend_Filter::filterStatic($this->config->orgao->descricao,'FullStringToUpper'),
             'o41_instit' => $this->config->instituicao->codigo,
             'o41_ident' => $this->config->orgao->tribunal
 
@@ -170,7 +174,7 @@ class Migrador
       
        try {
            $resultado = $this->db_ecidade->insert('orcamento.orcunidade', $orgao);
-           $this->showMessage('Unidade criada.');
+           $this->showMessage('Unidade adicionada - '.Zend_Filter::filterStatic($this->config->orgao->descricao,'FullStringToUpper'));
        } catch (Zend_Db_Exception $e){
            $this->showMessage($e->getMessage(),2);
            exit;
@@ -188,30 +192,7 @@ class Migrador
     }
     public function addEscolas(){
         
-         $escola = array(
-             'ed18_i_codigo' =>'', 
-             'ed18_i_rua' =>'', 
-             'ed18_i_numero' =>'', 
-             'ed18_c_compl' =>'', 
-             'ed18_i_bairro' =>'', 
-             'ed18_c_nome' =>'', 
-             'ed18_c_abrev' =>'', 
-             'ed18_c_mantenedora' =>'', 
-             'ed18_i_anoinicio' =>'', 
-             'ed18_c_email' =>'', 
-             'ed18_c_tipo' =>'', 
-             'ed18_c_codigoinep' =>'', 
-             'ed18_c_local' =>'', 
-             'ed18_c_cep' =>'', 
-             'ed18_i_cnpj' =>'', 
-             'ed18_i_locdiferenciada' =>'', 
-             'ed18_i_credenciamento' =>'', 
-             'ed18_i_censouf' =>'', 
-             'ed18_i_censomunic' =>'', 
-             'ed18_i_censodistrito' =>'', 
-             'ed18_i_conveniada' =>'', 
-             'ed18_c_mantprivada' =>''
-         );
+         
          $select = new Zend_Db_Select($this->db_ieducar);
          $select->from(array('a'=>'escola'), array('a.cod_escola', 'a.ref_cod_escola_rede_ensino', 'a.ref_cod_escola_localizacao', 'a.sigla'), 'pmieducar')
                  ->joinLeft(array('b'=>'escola_complemento'), 'a.cod_escola = b.ref_cod_escola',
@@ -222,7 +203,7 @@ class Migrador
          
          $result = $this->db_ieducar->fetchAll($select);
          //Não gerar inconsistencia em caso de integração com os outros módulos do e-cidade.
-         $i = 100000;
+         $i = 300000;
          foreach ($result  as $r){
              //Cadastro de Ruas
               $rural = 0;
@@ -231,7 +212,7 @@ class Migrador
              }
              
            //Pesquisa a existencia do logradouro no sistema
-            $where = $this->db_ecidade->quoteInto('a.j14_nome = ?',strtoupper($r['logradouro']));
+            $where = "a.j14_nome like '%".Zend_Filter::filterStatic($r['logradouro'],'FullStringToUpper')."%'";
             $selectlog = new Zend_Db_Select($this->db_ecidade);
             $selectlog->from(array('a'=>'ruas'),array('a.j14_codigo'), 'cadastro')
                          ->where($where);
@@ -241,13 +222,14 @@ class Migrador
             } else {
                  $ruas = array(
                      'j14_codigo'=>$i,
-                     'j14_nome'=>Zend_Filter::filterStatic($r['logradouro'],'StringToUpper'),
+                     'j14_nome'=>Zend_Filter::filterStatic($r['logradouro'],'FullStringToUpper'),
                      'j14_tipo'=>1,
                      'j14_rural'=>$rural
                  );
                  try {
-                    $rua_id = $this->db_ecidade->insert('cadastro.ruas', $ruas);
-                    $this->showMessage('Rua criada.');
+                    $this->db_ecidade->insert('cadastro.ruas', $ruas);
+                    $rua_id = $i;
+                    $this->showMessage('Logradouro adicionado - '.Zend_Filter::filterStatic($r['logradouro'],'FullStringToUpper'));
                    
                 } catch (Zend_Db_Exception $e){
                         $this->showMessage($e->getMessage(),2); 
@@ -256,7 +238,7 @@ class Migrador
             }
 
             //Pesquisa a existencia do bairro no sistema
-            $where = $this->db_ecidade->quoteInto('a.j13_descr = ?',strtoupper($r['bairro']));
+            $where = "a.j13_descr like '%".Zend_Filter::filterStatic($r['bairro'],'FullStringToUpper')."%'";
             $selectbairro = new Zend_Db_Select($this->db_ecidade);
             $selectbairro->from(array('a'=>'bairro'),array('a.j13_codi'), 'cadastro')
                          ->where($where);
@@ -266,23 +248,23 @@ class Migrador
             } else {
                   $bairros = array(
                      'j13_codi'=>$i,
-                     'j13_descr'=>Zend_Filter::filterStatic($r['bairro'],'StringToUpper'),
+                     'j13_descr'=>Zend_Filter::filterStatic($r['bairro'],'FullStringToUpper'),
                      'j13_rural'=>$rural
                  );
                  try {
-                    $bairro_id = $this->db_ecidade->insert('cadastro.bairro', $bairros);
-                    $this->showMessage('Bairro criada.');
+                    $this->db_ecidade->insert('cadastro.bairro', $bairros);
+                    $bairro_id = $i;
+                    $this->showMessage('Bairro adicionado - '.Zend_Filter::filterStatic($r['bairro'],'FullStringToUpper'));
                    
                 } catch (Zend_Db_Exception $e){
                         $this->showMessage($e->getMessage(),2); 
                         exit;
                 }
             }
-
-                   
+         
             
              
-             $cod_escola = $r['cod_escola'] + (int)$this->config->departamento->codigo_variacao;
+           
              //Cada escola é um departamento no e-cidade
             if($r['uf_'] == ''){
                 $r['uf_'] =  $this->config->educacenso->uf;
@@ -290,11 +272,21 @@ class Migrador
             if($r['municipio_'] == ''){
                 $r['municipio_'] = $this->config->educacenso->municipio;
             }
-            if($r['distrito_'] == ''){
-                $r['distrito_'] = $this->config->educacenso->distrito;
+         
+            
+            $where = $this->db_ecidade->quoteInto('a.ed262_i_censomunic = ?', $r['municipio_']);
+            $selectdistrito = new Zend_Db_Select($this->db_ecidade);
+            $selectdistrito->from(array('a'=>'censodistrito'),array('a.ed262_i_codigo'), 'escola')
+                         ->where($where);
+            $resultdistrito= $this->db_ecidade->fetchAll($selectdistrito);
+            if (count($resultdistrito)>0){
+                $distrito = $resultdistrito[0]['ed262_i_codigo'];
+            } else {
+                $distrito = $this->config->educacenso->distrito;
             }
-            
-            
+             //Código da escola - possui o mesmo código do departamento 
+             //Variação para não causar conflito com integração com outros departamentos existentes
+             $cod_escola = $r['cod_escola'] + (int)$this->config->departamento->codigo_variacao;
              
               $escola = array(
              'ed18_i_codigo' =>  $cod_escola, 
@@ -302,21 +294,19 @@ class Migrador
              'ed18_i_numero' =>$r['numero'], 
              'ed18_c_compl' =>$r['complemento'], 
              'ed18_i_bairro' => $bairro_id, 
-             'ed18_c_nome' =>Zend_Filter::filterStatic($r['nm_escola'],'StringToUpper'), 
-             'ed18_c_abrev' =>Zend_Filter::filterStatic($r['sigla'],'StringToUpper'), 
-             'ed18_c_mantenedora' =>3, //Municipal
-            
+             'ed18_c_nome' =>Zend_Filter::filterStatic($r['nm_escola'],'FullStringToUpper'), 
+             'ed18_c_abrev' =>Zend_Filter::filterStatic($r['sigla'],'FullStringToUpper'), 
+             'ed18_c_mantenedora' =>3, //Municipal            
              'ed18_c_email' =>Zend_Filter::filterStatic($r['email'],'StringToLower'),
              'ed18_c_tipo' =>'S', 
              'ed18_c_codigoinep' =>$r['cod_escola_inep'], 
              'ed18_c_local' =>$r['ref_cod_escola_localizacao'], 
-             'ed18_c_cep' =>$r['cep_'], 
-            
+             'ed18_c_cep' =>$r['cep_'],             
              'ed18_i_locdiferenciada' =>0, 
              'ed18_i_credenciamento' =>0, 
              'ed18_i_censouf' =>$r['uf_'], 
              'ed18_i_censomunic' =>$r['municipio_'], 
-             'ed18_i_censodistrito' =>$r['distrito_'], 
+             'ed18_i_censodistrito' =>$distrito, 
              'ed18_i_conveniada' =>0, 
              'ed18_i_educindigena' =>0,
              'ed18_i_censoorgreg' => 193,
@@ -327,7 +317,7 @@ class Migrador
            $i++;
            try {
                     $resultado= $this->db_ecidade->insert('escola.escola', $escola);
-                    $this->showMessage('Escola Criada.');
+                    $this->showMessage('Escola adicionada - '.Zend_Filter::filterStatic($r['nm_escola'],'FullStringToUpper'));
                   
             } catch (Zend_Db_Exception $e){
                     $this->showMessage($e->getMessage(),2);
@@ -339,74 +329,7 @@ class Migrador
     }
     
     public function addAlunos(){
-        // aluno - Cadastro de Alunos
-        $aluno =  array(
-            'ed47_i_codigo' => '',  // Código - tipo: int8                                    
-            'ed47_v_nome' => '',  // Nome - tipo: char(70)                                
-            'ed47_v_ender' => '',  // Endereço - tipo: varchar(100)                            
-            'ed47_c_numero' => '',  // Número - tipo: char(10)                                
-            'ed47_v_compl' => '',  // Complemento - tipo: varchar(20)                             
-            'ed47_v_bairro' => '',  // Bairro - tipo: varchar(40)                             
-            'ed47_v_cep' => '',  // CEP - tipo: varchar(8)                              
-            'ed47_c_raca' => '',  // Raça - tipo: char(20)                                
-            'ed47_v_cxpostal' => '',  // Caixa Postal - tipo: varchar(20)                             
-            'ed47_v_telef' => '',  // Telefone - tipo: varchar(12)                             
-            'ed47_d_cadast' => '',  // Data do Cadastramento - tipo: date                                    
-            'ed47_v_ident' => '',  // N° Identidade - tipo: varchar(20)                             
-            'ed47_i_login' => '',  // Login - tipo: int4                                    
-            'ed47_c_nomeresp' => '',  // Responsável Legal - tipo: char(70)                                
-            'ed47_c_emailresp' => '',  // Email do Responsável - tipo: char(50)                                
-            'ed47_c_atenddifer' => '',  // Recebe Escolarização em Outro Espaço - tipo: char(30)                                
-            'ed47_t_obs' => '',  // Observações - tipo: text                                    
-            'ed47_c_transporte' => '',  // Poder Público Responsável - tipo: char(20)                                
-            'ed47_c_zona' => '',  // Zona - tipo: char(20)                                
-            'ed47_c_certidaotipo' => '',  // Tipo de Certidão - tipo: char(1)                                 
-            'ed47_c_certidaonum' => '',  // Número do Termo - tipo: char(8)                                 
-            'ed47_c_certidaolivro' => '',  // Livro - tipo: char(8)                                 
-            'ed47_c_certidaofolha' => '',  // Folha - tipo: char(4)                                 
-            'ed47_c_certidaocart' => '',  // Cartório - tipo: char(150)                               
-            'ed47_c_certidaodata' => '',  // Data de Emissão - tipo: date                                    
-            'ed47_c_nis' => '',  // N° NIS - tipo: char(11)                                
-            'ed47_c_bolsafamilia' => '',  // Bolsa Família - tipo: char(1)                                 
-            'ed47_c_passivo' => '',  // Passivo - tipo: char(1)                                 
-            'ed47_d_dtemissao' => '',  // Emissão CNH - tipo: date                                    
-            'ed47_d_dthabilitacao' => '',  // 1ª CNH - tipo: date                                    
-            'ed47_d_dtvencimento' => '',  // Vencimento CNH - tipo: date                                    
-            'ed47_d_nasc' => '',  // Nascimento - tipo: date                                    
-            'ed47_d_ultalt' => '',  // Última Alteração - tipo: date                                    
-            'ed47_i_estciv' => '',  // Estado Civil - tipo: int4                                    
-            'ed47_i_nacion' => '',  // Nacionalidade - tipo: int4                                    
-            'ed47_v_categoria' => '',  // Categoria CNH - tipo: varchar(2)                              
-            'ed47_v_cnh' => '',  // N° CNH - tipo: varchar(20)                             
-            'ed47_v_contato' => '',  // Contato - tipo: text                                    
-            'ed47_v_cpf' => '',  // CPF - tipo: varchar(11)                             
-            'ed47_v_email' => '',  // Email - tipo: varchar(100)                            
-            'ed47_v_fax' => '',  // Fax - tipo: varchar(12)                             
-            'ed47_v_hora' => '',  // Hora do Cadastramento - tipo: varchar(5)                              
-            'ed47_v_mae' => '',  // Mãe - tipo: char(70)                                
-            'ed47_v_pai' => '',  // Pai - tipo: char(70)                                
-            'ed47_v_profis' => '',  // Profissão - tipo: varchar(40)                             
-            'ed47_v_sexo' => '',  // Sexo - tipo: varchar(1)                              
-            'ed47_v_telcel' => '',  // Telefone Celular - tipo: varchar(12)                             
-            'ed47_c_foto' => '',  // Foto - tipo: char(100)                               
-            'ed47_o_oid' => '',  // Imagem - tipo: oid                                     
-            'ed47_c_codigoinep' => '',  // Código INEP - tipo: char(12)                                
-            'ed47_i_pais' => '',  // País - tipo: int8                                    
-            'ed47_d_identdtexp' => '',  // Data Expedição Identidade - tipo: date                                    
-            'ed47_v_identcompl' => '',  // Complemento - tipo: char(4)                                 
-            'ed47_c_passaporte' => '',  // N° Passaporte - tipo: char(20)                                
-            'ed47_i_transpublico' => '',  // Transporte Escolar Público - tipo: int4                                    
-            'ed47_i_filiacao' => '',  // Filiação - tipo: int4                                    
-            'ed47_i_censoufend' => '',  // UF - tipo: int4                                    
-            'ed47_i_censomunicend' => '',  // Município - tipo: int4                                    
-            'ed47_i_censoorgemissrg' => '',  // Órgão Emissor - tipo: int4                                    
-            'ed47_i_censoufident' => '',  // UF Identidade - tipo: int4                                    
-            'ed47_i_censoufcert' => '',  // UF Cartório - tipo: int4                                    
-            'ed47_i_censomuniccert' => '',  // Município - tipo: int4                                    
-            'ed47_i_censoufnat' => '',  // UF de Nascimento - tipo: int4                                    
-            'ed47_i_censomunicnat' => '',  // Naturalidade - tipo: int4                                    
-            'ed47_i_atendespec' => '',  // Atend. Especializado - tipo: int4                                    
-        );
+       
         
          $select = new Zend_Db_Select($this->db_ieducar);
          $select->from(array('a'=>'aluno'),array('a.cod_aluno', 'a.ref_cod_religiao', 'a.ref_usuario_exc', 'a.ref_idpes', 'a.data_cadastro','a.ativo', 'a.analfabeto', 'a.nm_pai', 'a.nm_mae', 'a.tipo_responsavel'), 'pmieducar')
@@ -431,33 +354,33 @@ class Migrador
         
         foreach ($result as $r) {
         
-            //Estado Civil
-    switch ($r['ideciv']) {
-        case 5 :
-         $r['ideciv']  = 3;
-         break;
-        case 3 :
-         $r['ideciv']  = 4;
-         break;
-        case 2 :
-         $r['ideciv']  = 2;
-         break;
-        default:
-        $r['ideciv'] = 1;
+        //Estado Civil
+        switch ($r['ideciv']) {
+            case 5 :
+                $r['ideciv']  = 3;
+                break;
+            case 3 :
+                $r['ideciv']  = 4;
+                break;
+            case 2 :
+                $r['ideciv']  = 2;
+                break;
+            default:
+                $r['ideciv'] = 1;
+                break;
+        }
+        //Tipo de certidão
+        switch ($r['tipo_cert_civil']) {
+            case 91 :
+                $r['tipo_cert_civil']  = 'N';
+                break;         
+            case 92:
+                $r['tipo_cert_civil']  = 'C';
+                break;      
+            default:
+                $r['tipo_cert_civil'] = '';
         break;
-    }
-     //Tipo de certidão
-    switch ($r['tipo_cert_civil']) {
-        case 91 :
-            $r['tipo_cert_civil']  = 'N';
-         break;         
-        case 92:
-         $r['tipo_cert_civil']  = 'C';
-         break;      
-        default:
-        $r['tipo_cert_civil'] = '';
-        break;
-    }
+        }
         //Código da Cidade de Nascimento conforme Educacenso
         if($r['idmun_nascimento'] == '') { $r['idmun_nascimento'] = 0;}
         $where = $this->db_ieducar->quoteInto('a.idmun = ?',$r['idmun_nascimento']);
@@ -465,18 +388,19 @@ class Migrador
         $selectMunic->from(array('a'=>'municipio'),array('a.idmun','a.nome', 'a.sigla_uf'), 'public')
                      ->where($where);
         $resultMunic = $this->db_ieducar->fetchAll($selectMunic);
-        if (count($resultMunic)) {
-            $where = $this->db_ieducar->quoteInto('a.ed261_c_nome = ?',strtoupper($resultMunic[0]['nome']));
+        if (count($resultMunic) > 0) {
+            $where = $this->db_ecidade->quoteInto('a.ed261_c_nome = ?',Zend_Filter::filterStatic($resultMunic[0]['nome'], 'FullStringToUpper'));
             $selectMunic = new Zend_Db_Select($this->db_ecidade);
             $selectMunic->from(array('a'=>'censomunic'),array('a.ed261_i_codigo', 'a.ed261_i_censouf', 'a.ed261_c_nome'), 'escola')
                  ->where($where);
             $resultMunic = $this->db_ecidade->fetchAll($selectMunic);
+            
             if(count($resultMunic) > 0){
-            $cidadeNasc = $resultMunic[0]['ed261_i_codigo'];
-            $ufNasc = $resultMunic[0]['ed261_i_censouf'];
+                $cidadeNasc = $resultMunic[0]['ed261_i_codigo'];
+                $ufNasc = $resultMunic[0]['ed261_i_censouf'];
             } else {
-            $cidadeNasc = 0;
-            $ufNasc = 0;
+                $cidadeNasc = 0;
+                $ufNasc = 0;
             }
             
         } else {
@@ -487,7 +411,7 @@ class Migrador
         
            
         //Códigos da Cidade e Uf
-        $where = $this->db_ieducar->quoteInto('a.ed261_c_nome = ?',strtoupper($r['cidade']));
+        $where = $this->db_ecidade->quoteInto('a.ed261_c_nome = ?',Zend_Filter::filterStatic($r['cidade'],'FullStringToUpper'));
         $selectMunic = new Zend_Db_Select($this->db_ecidade);
         $selectMunic->from(array('a'=>'censomunic'),array('a.ed261_i_codigo', 'a.ed261_i_censouf', 'a.ed261_c_nome'), 'escola')
                      ->where($where);
@@ -501,7 +425,7 @@ class Migrador
         }
         
         //Código Uf Certidão
-        $where = $this->db_ieducar->quoteInto('a.ed260_c_sigla = ?',strtoupper($r['sigla_uf_cert_civil']));
+        $where = $this->db_ieducar->quoteInto('a.ed260_c_sigla = ?',Zend_Filter::filterStatic($r['sigla_uf_cert_civil'],'FullStringToUpper'));
         $selectUf = new Zend_Db_Select($this->db_ecidade);
         $selectUf->from(array('a'=>'censouf'),array('a.ed260_i_codigo', 'a.ed260_c_sigla', 'a.ed260_c_nome'), 'escola')
                      ->where($where);
@@ -514,7 +438,7 @@ class Migrador
         }
         
         //Código Uf RG
-        $where = $this->db_ieducar->quoteInto('a.ed260_c_sigla = ?',strtoupper($r['sigla_uf_exp_rg']));
+        $where = $this->db_ieducar->quoteInto('a.ed260_c_sigla = ?',Zend_Filter::filterStatic($r['sigla_uf_exp_rg'],'FullStringToUpper'));
         $selectUf = new Zend_Db_Select($this->db_ecidade);
         $selectUf->from(array('a'=>'censouf'),array('a.ed260_i_codigo', 'a.ed260_c_sigla', 'a.ed260_c_nome'), 'escola')
                      ->where($where);
@@ -528,7 +452,7 @@ class Migrador
         
         
         //Código Órgão RG Emissor
-        $where = $this->db_ieducar->quoteInto('a.ed132_c_descr = ?',strtoupper($r['descricao']));
+        $where = $this->db_ieducar->quoteInto('a.ed132_c_descr = ?',Zend_Filter::filterStatic($r['descricao']),'FullStringToUpper');
         $selectOrgaoRG = new Zend_Db_Select($this->db_ecidade);
         $selectOrgaoRG->from(array('a'=>'censoorgemissrg'),array('a.ed132_i_codigo', 'a.ed132_c_descr'), 'escola')
                      ->where($where);
@@ -562,19 +486,19 @@ class Migrador
           // aluno - Cadastro de Alunos
         $aluno =  array(
             'ed47_i_codigo' => $r['cod_aluno'],  // Código - tipo: int8                                    
-            'ed47_v_nome' => strtoupper($r['nome']),  // Nome - tipo: char(70)                                
-            'ed47_v_ender' => $r['idtlog'].' '.strtoupper($r['logradouro']),  // Endereço - tipo: varchar(100)                            
+            'ed47_v_nome' => Zend_Filter::filterStatic($r['nome'],'FullStringToUpper'),  // Nome - tipo: char(70)                                
+            'ed47_v_ender' => $r['idtlog'].' '.Zend_Filter::filterStatic($r['logradouro'],'FullStringToUpper'),  // Endereço - tipo: varchar(100)                            
             'ed47_c_numero' => $r['numero'],  // Número - tipo: char(10)                                
             'ed47_v_compl' => $r['complemento'],  // Complemento - tipo: varchar(20)                             
-            'ed47_v_bairro' => strtoupper($r['bairro']),  // Bairro - tipo: varchar(40)                             
+            'ed47_v_bairro' => Zend_Filter::filterStatic($r['bairro'],'FullStringToUpper'),  // Bairro - tipo: varchar(40)                             
             'ed47_v_cep' => $r['cep'],  // CEP - tipo: varchar(8)                              
-            'ed47_c_raca' =>  strtoupper($r['nm_raca']),  // Raça - tipo: char(20)                                
+            'ed47_c_raca' =>  Zend_Filter::filterStatic($r['nm_raca'],'FullStringToUpper'),  // Raça - tipo: char(20)                                
             'ed47_v_cxpostal' => '',  // Caixa Postal - tipo: varchar(20)                             
             'ed47_v_telef' => $fone,  // Telefone - tipo: varchar(12)                             
             'ed47_d_cadast' => $data_cadastro,  // Data do Cadastramento - tipo: date                                    
             'ed47_v_ident' => $r['rg'],  // N° Identidade - tipo: varchar(20)                             
             'ed47_i_login' => 0,  // Login - tipo: int4                                    
-            'ed47_c_nomeresp' => strtoupper($respon),  // Responsável Legal - tipo: char(70)                                
+            'ed47_c_nomeresp' => Zend_Filter::filterStatic($respon,'FullStringToUpper'),  // Responsável Legal - tipo: char(70)                                
             'ed47_c_emailresp' => $r['email'],  // Email do Responsável - tipo: char(50)                                
             'ed47_c_atenddifer' => '',  // Recebe Escolarização em Outro Espaço - tipo: char(30)                                
             'ed47_t_obs' => '',  // Observações - tipo: text                                    
@@ -584,7 +508,7 @@ class Migrador
             'ed47_c_certidaonum' => $r['num_termo'],  // Número do Termo - tipo: char(8)                                 
             'ed47_c_certidaolivro' => $r['num_livro'],  // Livro - tipo: char(8)                                 
             'ed47_c_certidaofolha' => $r['num_folha'],  // Folha - tipo: char(4)                                 
-            'ed47_c_certidaocart' =>strtoupper( $r['cartorio_cert_civil']),  // Cartório - tipo: char(150)                               
+            'ed47_c_certidaocart' =>Zend_Filter::filterStatic( $r['cartorio_cert_civil'],'FullStringToUpper'),  // Cartório - tipo: char(150)                               
             'ed47_c_certidaodata' => $r['data_emissao_cert_civil'],  // Data de Emissão - tipo: date                                    
             'ed47_c_nis' => '',  // N° NIS - tipo: char(11)                                
             'ed47_c_bolsafamilia' => '',  // Bolsa Família - tipo: char(1)                                 
@@ -603,10 +527,10 @@ class Migrador
             'ed47_v_email' => $r['email'],  // Email - tipo: varchar(100)                            
             'ed47_v_fax' => '',  // Fax - tipo: varchar(12)                             
             //'ed47_v_hora' => '',  // Hora do Cadastramento - tipo: varchar(5)                              
-            'ed47_v_mae' => strtoupper($r['nm_mae']),  // Mãe - tipo: char(70)                                
-            'ed47_v_pai' => strtoupper($r['nm_pai']),  // Pai - tipo: char(70)                                
+            'ed47_v_mae' => Zend_Filter::filterStatic($r['nm_mae'],'FullStringToUpper'),  // Mãe - tipo: char(70)                                
+            'ed47_v_pai' => Zend_Filter::filterStatic($r['nm_pai'],'FullStringToUpper'),  // Pai - tipo: char(70)                                
             'ed47_v_profis' => '',  // Profissão - tipo: varchar(40)                             
-            'ed47_v_sexo' => strtoupper($r['sexo']),  // Sexo - tipo: varchar(1)                              
+            'ed47_v_sexo' => Zend_Filter::filterStatic($r['sexo'],'FullStringToUpper'),  // Sexo - tipo: varchar(1)                              
             'ed47_v_telcel' => '',  // Telefone Celular - tipo: varchar(12)                             
             'ed47_c_foto' => '',  // Foto - tipo: char(100)                               
             //'ed47_o_oid' => '',  // Imagem - tipo: oid                                     
@@ -638,11 +562,11 @@ class Migrador
                 if($idlast == $r['cod_aluno']){
                     
                      $resultado= $this->db_ecidade->update('escola.aluno', $alunoUpdate,'ed47_i_codigo ='.$r['cod_aluno']);
-                     $this->showMessage('Aluno atualizado - '.$r['cod_aluno']);
+                     $this->showMessage('Aluno atualizado - '.$r['cod_aluno'].' - '.Zend_Filter::filterStatic($r['nome'],'FullStringToUpper'));
                 } else {
                      
                      $resultado= $this->db_ecidade->insert('escola.aluno', $aluno);
-                     $this->showMessage('Aluno adicionadio - '.$r['cod_aluno']);
+                     $this->showMessage('Aluno adicionadio - '.$r['cod_aluno'].' - '.Zend_Filter::filterStatic($r['nome'],'FullStringToUpper'));
                 }
                 
                 $idlast = $r['cod_aluno'];
@@ -662,22 +586,98 @@ class Migrador
     
     public function addCursos(){
         
-        // cursoedu - Cadastro de Cursos
-        $cursoedu = array(
-        'ed29_i_codigo' => '',  // Código - tipo: int8                                    
-        'ed29_i_ensino' => '',  // Nível de Ensino - tipo: int8                                    
-        'ed29_c_descr' => '',  // Nome do Curso - tipo: char(40)                                
-        'ed29_c_historico' => '',  // Incluir no Histórico - tipo: char(1)                                 
-        );
+                         
+        //Select dos Cursos, Níveis de Educação e Tipos de Ensino - i-Educar
+        //Mapeamento correspondente entre o i-Educar e Módulo Educação
+        //Nivel de Ensino -> Modalidade de Ensino (Ensino Regular, Educação Especial...)
+        //Tipo de Ensino  -> Nível de Ensino (Educação Infantil, Ensino Fundamental...)
         
-        // ensino - Cadastro dos ensinos da escola
-        $ensino = array(
-        'ed10_i_codigo' => '',  // Código - tipo: int8                                    
-        'ed10_i_tipoensino' => '',  // Modalidade de Ensino - tipo: int8                                    
-        'ed10_i_grauensino' => '',  // Grau de Ensino - tipo: int4                                    
-        'ed10_c_descr' => '',  // Descrição - tipo: char(50)                                
-        'ed10_c_abrev' => '',  // Abreviatura - tipo: char(5)                                 
-        );
+        $select = new Zend_Db_Select($this->db_ieducar);
+        $select->from(array('a' => 'curso'), array('a.cod_curso', 'a.ref_cod_nivel_ensino', 'a.ref_cod_tipo_ensino', 'a.nm_curso', 'a.qtd_etapas', 'a.carga_horaria', 'a.ato_poder_publico', 'a.objetivo_curso', 'a.publico_alvo', 'a.ativo'), 'pmieducar')
+               ->joinLeft(array('b' => 'nivel_ensino'), 'a.ref_cod_nivel_ensino = b.cod_nivel_ensino', array('b.cod_nivel_ensino', 'b.nm_nivel'),'pmieducar')
+               ->joinLeft(array('c' => 'tipo_ensino'), 'a.ref_cod_tipo_ensino = c.cod_tipo_ensino', array('c.cod_tipo_ensino', 'c.nm_tipo'),'pmieducar')
+               ->order('c.cod_tipo_ensino');
+        $result = $this->db_ieducar->fetchAll($select);
         
+        //Criação dos Níveis de Ensino (Modalidade - Nível de Ensino)
+        foreach ($result as $r){
+            
+            //Verifica se nível de ensino exite no banco, caso ele não exita é inserido.
+            $nome_ensino =   trim(Zend_Filter::filterStatic($r['nm_nivel'], 'FullStringToUpper')).' - '.trim(Zend_Filter::filterStatic($r['nm_tipo'], 'FullStringToUpper'));
+            $where = $this->db_ecidade->quoteInto('a.ed10_c_descr = ?',$nome_ensino);
+            $selectEnsino = new Zend_Db_Select($this->db_ecidade);
+            $selectEnsino->from(array('a'=>'ensino'),array('a.ed10_i_codigo'), 'escola')
+                         ->where($where);
+            $resulEnsino = $this->db_ecidade->fetchAll($selectEnsino);
+            if(count($resulEnsino) > 0){            
+                $cod_ensino = $resulEnsino[0]['ed10_i_codigo'];
+            } else {
+                
+                // ensino - Cadastro dos ensinos da escola
+                $proximo_id = $this->db_ecidade->nextSequenceId('escola.ensino_ed10_i_codigo_seq');
+                $ensino = array(
+                    'ed10_i_codigo' => $proximo_id,  // Código - tipo: int8                                    
+                    'ed10_i_tipoensino' => $r['cod_nivel_ensino'],  // Modalidade de Ensino - tipo: int8                                    
+                    //'ed10_i_grauensino' => '',  // Grau de Ensino - tipo: int4                                    
+                    'ed10_c_descr' => $nome_ensino,  // Descrição - tipo: char(50)                                
+                    //'ed10_c_abrev' => '',  // Abreviatura - tipo: char(5)                                 
+                );
+                
+                try {
+                        $this->db_ecidade->insert('escola.ensino', $ensino);
+                        $cod_ensino = $this->db_ecidade->lastSequenceId('escola.ensino_ed10_i_codigo_seq');
+                        $this->showMessage('Nível de Ensino Adicionado - '.$nome_ensino);
+
+                } catch (Zend_Db_Exception $e){
+                        $this->showMessage($e->getMessage(),2);
+                        exit;
+                }
+               
+            }
+            
+            //Adicionando Curso
+            
+            // cursoedu - Cadastro de Cursos
+            $cursoedu = array(
+            'ed29_i_codigo' => $r['cod_curso'],  // Código - tipo: int8                                    
+            'ed29_i_ensino' => $cod_ensino,  // Nível de Ensino - tipo: int8                                    
+            'ed29_c_descr' => Zend_Filter::filterStatic($r['nm_curso'],'FullStringToUpper'),  // Nome do Curso - tipo: char(40)                                
+            'ed29_c_historico' => 'S',  // Incluir no Histórico - tipo: char(1)                                 
+            );
+            
+            try {
+                    $cod_ensino = $this->db_ecidade->insert('escola.cursoedu', $cursoedu);
+                    $this->showMessage('Curso Adicionado - '.Zend_Filter::filterStatic($r['nm_curso'],'FullStringToUpper'));
+
+            } catch (Zend_Db_Exception $e){
+                    $this->showMessage($e->getMessage(),2);
+                    exit;
+            }
+
+        }
+        
+        
+    }   
+   
+    public function addServidor() {
+        
+       
+        
+         $select = new Zend_Db_Select($this->db_ieducar);
+         $select->from(array('a'=>'servidor'),array('a.cod_servidor', 'a.ref_cod_deficiencia', 'a.ref_idesco', 'a.carga_horaria', 'data_cadastro', 'a.ativo'), 'pmieducar')
+                ->joinLeft(array('b'=>'fisica'), 'a.cod_servidor = b.idpes',array( 'b.data_nasc', 'b.sexo', 'b.cpf','b.ideciv','b.nacionalidade', 'b.idpais_estrangeiro', 'idmun_nascimento'), 'cadastro')
+                ->joinLeft(array('c'=>'pessoa'), 'a.cod_servidor = c.idpes',array('c.nome', 'c.email'), 'cadastro')
+                ->joinLeft(array('e'=>'educacenso_cod_docente'), 'a.cod_servidor = e.cod_servidor',array('e.cod_docente_inep'), 'modules')
+                ->joinLeft(array('d'=>'endereco_externo'), 'a.cod_servidor = d.idpes',array('idpes', 'tipo', 'idtlog', 'logradouro', 'numero', 'letra', 'complemento', 'bairro', 'cep', 'cidade', 'sigla_uf', 'bloco', 'andar', 'apartamento', 'zona_localizacao'), 'cadastro')
+                ->joinLeft(array('f'=>'documento'), 'a.cod_servidor = f.idpes',array('rg','idorg_exp_rg', 'data_exp_rg', 'sigla_uf_exp_rg', 'tipo_cert_civil', 'num_termo', 'num_livro', 'num_folha', 'data_emissao_cert_civil', 'sigla_uf_cert_civil', 'cartorio_cert_civil', 'num_cart_trabalho', 'serie_cart_trabalho', 'data_emissao_cart_trabalho', 'sigla_uf_cart_trabalho', 'num_tit_eleitor', 'zona_tit_eleitor', 'secao_tit_eleitor', 'idorg_exp_rg'),'cadastro')
+                ->joinLeft(array('g'=>'fisica_raca'), 'a.cod_servidor = g.ref_idpes',array('ref_cod_raca'),'cadastro')
+                ->joinLeft(array('h'=>'fisica_deficiencia'), 'a.cod_servidor = h.ref_idpes',array('ref_cod_deficiencia'),'cadastro')
+                ->joinLeft(array('i'=>'fone_pessoa'), 'a.cod_servidor = i.idpes',array('tipo', 'ddd', 'fone'),'cadastro')
+                ->joinLeft(array('j'=>'raca'), 'g.ref_cod_raca = j.cod_raca',array('nm_raca'),'cadastro')
+                ->joinLeft(array('k'=>'orgao_emissor_rg'), 'f.idorg_exp_rg = k.idorg_rg',array('k.descricao'),'cadastro')
+                ->order('a.cod_servidor');
+         
+          $result = $this->db_ieducar->fetchAll($select);
+         
     }
 }
