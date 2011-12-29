@@ -32,8 +32,10 @@ class Migrador
        //$this->addUnidade();
        //$this->addDepartamentos();
        //$this->addEscolas();
+       $this->addDiasLetivos();
+       $this->addEtapas();
        //$this->addAlunos();
-       $this->addCursos();
+       //$this->addCursos();
        //$this->addSSdervidor();
        
     }
@@ -327,6 +329,98 @@ class Migrador
          }
         
     }
+    public function addDiasLetivos()
+    {
+         $selectEscolas = new Zend_Db_Select($this->db_ecidade);
+         $selectEscolas->from(array('a'=>'escola'),array('ed18_i_codigo','ed18_c_nome'), 'escola');
+         $result= $this->db_ecidade->fetchAll($selectEscolas);
+         
+         //Codigos dos dias semana letivos 
+         $dias_semana = array('1','2','3','4','5','6','7');
+         foreach ($result as $r){
+             
+             foreach ($dias_semana as $d){
+                    
+                    
+                    $next_codigo = $this->db_ecidade->nextSequenceId('escola.dialetivo_ed04_i_codigo_seq');
+                    if ($d == 1) {
+                        $letivo = 'N';
+                    } else {
+                        $letivo = 'S';
+                    }
+                     // dialetivo - Dias da Semana Letivos
+                    $dialetivo = array(
+                    'ed04_i_codigo' => $next_codigo,  // Código - tipo: int8                                    
+                    'ed04_i_escola' => $r['ed18_i_codigo'],  // Escola - tipo: int8                                    
+                    'ed04_i_diasemana' => $d,  // Dia da Semana - tipo: int8                                    
+                    'ed04_c_letivo' => $letivo,  // Dia Letivo - tipo: char(1)                                 
+                    );
+                    
+                    try {
+                        $resultado= $this->db_ecidade->insert('escola.dialetivo', $dialetivo);
+                        $this->showMessage('Dia Letivo Adicionado - '.$r['ed18_c_nome']);
+
+                    } catch (Zend_Db_Exception $e){
+                        $this->showMessage($e->getMessage(),2);
+                       
+                    }
+             }
+             
+             
+         }
+    }
+    
+    // Adicionando Séries
+    public function addEtapas()
+    {
+         //Lista séries do ieducar
+         $selectSerie = new Zend_Db_Select($this->db_ieducar);
+         $selectSerie->from(array('a'=>'serie'),array('a.cod_serie', 'a.ref_cod_curso', 'a.nm_serie', 'a.etapa_curso'), 'pmieducar')
+                     ->joinLeft(array('b' => 'educacenso_tax_etapa_ensino'), 'a.cod_serie = b.cod_serie' ,array('b.cod_etapa_ensino_inep'), 'modules');
+         $result= $this->db_ieducar->fetchAll($selectSerie);
+         
+        
+         foreach ($result as $r){
+             
+            //Nivel do curso no e-cidade conforme código do curso
+             $selecNivelEnsino = new Zend_Db_Select($this->db_ecidade);
+             $selecNivelEnsino->from(array('a'=>'cursoedu'), array('a.ed29_i_codigo','a.ed29_i_ensino'), 'escola')
+                              ->where('a.ed29_i_codigo = ?', $r['ref_cod_curso']);
+             $resultNivelEnsino= $this->db_ecidade->fetchAll($selecNivelEnsino);
+             
+             if (count($resultNivelEnsino) > 0){
+                 
+                 $nivelEnsino = $resultNivelEnsino[0]['ed29_i_ensino'];
+                 
+                 if($r['cod_etapa_ensino_inep'] == ''){
+                     $censo_cod = 0;
+                 } else {
+                     $censo_cod = $r['cod_etapa_ensino_inep'];
+                 }
+                    // serie - Cadastro de Séries
+                    $serie = array(
+                    'ed11_i_codigo' => $r['cod_serie'],  // Código - tipo: int8                                    
+                    'ed11_i_ensino' => $nivelEnsino,  // Nível de Ensino - tipo: int8                                    
+                    'ed11_c_descr' => Zend_Filter::filterStatic($r['nm_serie'], 'FullStringToUpper'),  // Nome da Etapa - tipo: char(20)                                
+                    'ed11_c_abrev' => Zend_Filter::filterStatic($r['nm_serie'], 'FullStringToUpper'),  // Abreviatura - tipo: char(10)                                
+                    'ed11_i_sequencia' => $r['etapa_curso'],  // Ordenação - tipo: int4                                    
+                    'ed11_i_codcenso' => $censo_cod,  // Código Censo - tipo: int4  
+                    );
+                    
+                    try {
+                        $resultado= $this->db_ecidade->insert('escola.serie', $serie);
+                        $this->showMessage('Série Adicionada - '.Zend_Filter::filterStatic($r['nm_serie'], 'FullStringToUpper'));
+
+                    } catch (Zend_Db_Exception $e){
+                        $this->showMessage($e->getMessage(),2);
+                       
+                    }
+             }
+             
+                      
+             
+         }
+    }
     
     public function addAlunos(){
        
@@ -452,7 +546,8 @@ class Migrador
         
         
         //Código Órgão RG Emissor
-        $where = $this->db_ieducar->quoteInto('a.ed132_c_descr = ?',Zend_Filter::filterStatic($r['descricao']),'FullStringToUpper');
+      
+        $where = $this->db_ieducar->quoteInto('a.ed132_c_descr = ?',Zend_Filter::filterStatic($r['descricao'],'FullStringToUpper'));
         $selectOrgaoRG = new Zend_Db_Select($this->db_ecidade);
         $selectOrgaoRG->from(array('a'=>'censoorgemissrg'),array('a.ed132_i_codigo', 'a.ed132_c_descr'), 'escola')
                      ->where($where);
