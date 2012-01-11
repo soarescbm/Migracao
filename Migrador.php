@@ -32,10 +32,15 @@ class Migrador
        //$this->addUnidade();
        //$this->addDepartamentos();
        //$this->addEscolas();
-       $this->addDiasLetivos();
-       $this->addEtapas();
-       //$this->addAlunos();
+       //$this->addDiasLetivos();
        //$this->addCursos();
+       //$this->addEtapas();
+       //$this->addCursoEscola();
+       //$this->addAlunos();
+       //$this->addDisciplinas();
+       //$this->addCalendarioLetivo();
+       //$this->addCalendarioLetivo2012();
+      
        //$this->addSSdervidor();
        
     }
@@ -407,8 +412,18 @@ class Migrador
                     'ed11_i_codcenso' => $censo_cod,  // Código Censo - tipo: int4  
                     );
                     
+                    // serieregimemat - Regime de Matrícula das Séries
+                    $serieregimemat = array(
+                    'ed223_i_codigo' => $r['cod_serie'],  // Código - tipo: int8                                    
+                    'ed223_i_serie' => $r['cod_serie'],  // Etapa - tipo: int8                                    
+                    'ed223_i_regimemat' => 1,  // Regime de Matrícula - tipo: int8                                    
+                    //'ed223_i_regimematdiv' => '',  // Divisão do Regime de Matrícula - tipo: int8                                    
+                    'ed223_i_ordenacao' => $r['etapa_curso'],  // Ordenação - tipo: int8                                    
+                    );
+                    
                     try {
-                        $resultado= $this->db_ecidade->insert('escola.serie', $serie);
+                        $this->db_ecidade->insert('escola.serie', $serie);
+                        $this->db_ecidade->insert('escola.serieregimemat', $serieregimemat);                        
                         $this->showMessage('Série Adicionada - '.Zend_Filter::filterStatic($r['nm_serie'], 'FullStringToUpper'));
 
                     } catch (Zend_Db_Exception $e){
@@ -437,7 +452,8 @@ class Migrador
                 ->joinLeft(array('i'=>'fone_pessoa'), 'a.ref_idpes = i.idpes',array('tipo', 'ddd', 'fone'),'cadastro')
                 ->joinLeft(array('j'=>'raca'), 'g.ref_cod_raca = j.cod_raca',array('nm_raca'),'cadastro')
                 ->joinLeft(array('k'=>'orgao_emissor_rg'), 'f.idorg_exp_rg = k.idorg_rg',array('k.descricao'),'cadastro')
-                ->order('a.cod_aluno');
+                ->order('a.cod_aluno')
+                ->where('a.cod_aluno > 28333');
               
          
 
@@ -691,57 +707,35 @@ class Migrador
         $select->from(array('a' => 'curso'), array('a.cod_curso', 'a.ref_cod_nivel_ensino', 'a.ref_cod_tipo_ensino', 'a.nm_curso', 'a.qtd_etapas', 'a.carga_horaria', 'a.ato_poder_publico', 'a.objetivo_curso', 'a.publico_alvo', 'a.ativo'), 'pmieducar')
                ->joinLeft(array('b' => 'nivel_ensino'), 'a.ref_cod_nivel_ensino = b.cod_nivel_ensino', array('b.cod_nivel_ensino', 'b.nm_nivel'),'pmieducar')
                ->joinLeft(array('c' => 'tipo_ensino'), 'a.ref_cod_tipo_ensino = c.cod_tipo_ensino', array('c.cod_tipo_ensino', 'c.nm_tipo'),'pmieducar')
-               ->order('c.cod_tipo_ensino');
+               ->order('c.cod_tipo_ensino')
+               ->where('a.cod_curso in (1,2,4,21,22,23,24,26)');
         $result = $this->db_ieducar->fetchAll($select);
         
         //Criação dos Níveis de Ensino (Modalidade - Nível de Ensino)
         foreach ($result as $r){
+                      
+            //Ajustar o nomes dos níveis de ensino após a migracação                      
+            $ensino = array(
+                'ed10_i_codigo' => $r['cod_curso'],  // Código - tipo: int8                                    
+                'ed10_i_tipoensino' => $r['cod_nivel_ensino'],  // Modalidade de Ensino - tipo: int8                                    
+                //'ed10_i_grauensino' => '',  // Grau de Ensino - tipo: int4                                    
+                'ed10_c_descr' => Zend_Filter::filterStatic($r['nm_curso'],'FullStringToUpper'),  // Descrição - tipo: char(50)                                
+                //'ed10_c_abrev' => '',  // Abreviatura - tipo: char(5)                                 
+            );
+                       
             
-            //Verifica se nível de ensino exite no banco, caso ele não exita é inserido.
-            $nome_ensino =   trim(Zend_Filter::filterStatic($r['nm_nivel'], 'FullStringToUpper')).' - '.trim(Zend_Filter::filterStatic($r['nm_tipo'], 'FullStringToUpper'));
-            $where = $this->db_ecidade->quoteInto('a.ed10_c_descr = ?',$nome_ensino);
-            $selectEnsino = new Zend_Db_Select($this->db_ecidade);
-            $selectEnsino->from(array('a'=>'ensino'),array('a.ed10_i_codigo'), 'escola')
-                         ->where($where);
-            $resulEnsino = $this->db_ecidade->fetchAll($selectEnsino);
-            if(count($resulEnsino) > 0){            
-                $cod_ensino = $resulEnsino[0]['ed10_i_codigo'];
-            } else {
-                
-                // ensino - Cadastro dos ensinos da escola
-                $proximo_id = $this->db_ecidade->nextSequenceId('escola.ensino_ed10_i_codigo_seq');
-                $ensino = array(
-                    'ed10_i_codigo' => $proximo_id,  // Código - tipo: int8                                    
-                    'ed10_i_tipoensino' => $r['cod_nivel_ensino'],  // Modalidade de Ensino - tipo: int8                                    
-                    //'ed10_i_grauensino' => '',  // Grau de Ensino - tipo: int4                                    
-                    'ed10_c_descr' => $nome_ensino,  // Descrição - tipo: char(50)                                
-                    //'ed10_c_abrev' => '',  // Abreviatura - tipo: char(5)                                 
-                );
-                
-                try {
-                        $this->db_ecidade->insert('escola.ensino', $ensino);
-                        $cod_ensino = $this->db_ecidade->lastSequenceId('escola.ensino_ed10_i_codigo_seq');
-                        $this->showMessage('Nível de Ensino Adicionado - '.$nome_ensino);
-
-                } catch (Zend_Db_Exception $e){
-                        $this->showMessage($e->getMessage(),2);
-                        exit;
-                }
-               
-            }
-            
-            //Adicionando Curso
-            
+            //Adicionando Curso            
             // cursoedu - Cadastro de Cursos
             $cursoedu = array(
             'ed29_i_codigo' => $r['cod_curso'],  // Código - tipo: int8                                    
-            'ed29_i_ensino' => $cod_ensino,  // Nível de Ensino - tipo: int8                                    
+            'ed29_i_ensino' => $r['cod_curso'],  // Nível de Ensino - tipo: int8                                    
             'ed29_c_descr' => Zend_Filter::filterStatic($r['nm_curso'],'FullStringToUpper'),  // Nome do Curso - tipo: char(40)                                
             'ed29_c_historico' => 'S',  // Incluir no Histórico - tipo: char(1)                                 
             );
             
             try {
-                    $cod_ensino = $this->db_ecidade->insert('escola.cursoedu', $cursoedu);
+                    $this->db_ecidade->insert('escola.ensino', $ensino);
+                    $this->db_ecidade->insert('escola.cursoedu', $cursoedu);
                     $this->showMessage('Curso Adicionado - '.Zend_Filter::filterStatic($r['nm_curso'],'FullStringToUpper'));
 
             } catch (Zend_Db_Exception $e){
@@ -753,6 +747,47 @@ class Migrador
         
         
     }   
+    
+    public function addCursoEscola(){
+       
+        $select = new Zend_Db_Select($this->db_ieducar);
+        $select->from(array('a' => 'escola_curso'), array('a.ref_cod_escola', 'a.ref_cod_curso','a.ativo' ),'pmieducar')
+                ->where('a.ref_cod_curso in (1,2,4,21,22,23,24,26)');
+        $result = $this->db_ieducar->fetchAll($select);
+        
+        foreach ($result as $r){
+            
+            if($r['ativo'] == 1){
+                $ativo = 'S';
+            } else {
+                 $ativo = 'N';
+            }
+            
+            //Variação para não causar conflito com integração com outros departamentos existentes
+            $cod_escola = $r['ref_cod_escola'] + (int)$this->config->departamento->codigo_variacao;
+            
+           // cursoescola - Cursos associados a Escola
+           $proximo_id = $this->db_ecidade->nextSequenceId('escola.cursoescola_ed71_i_codigo_seq');
+           // cursoescola - Cursos associados a Escola
+            $cursoescola = array(
+                'ed71_i_codigo' => $proximo_id,  // Código - tipo: int8                                    
+                'ed71_i_escola' => $cod_escola,  // Escola - tipo: int8                                    
+                'ed71_i_curso' => $r['ref_cod_curso'],  // Curso - tipo: int8                                    
+                'ed71_c_situacao' => $ativo,  // Ativo - tipo: char(1)                                 
+                'ed71_c_turmasala' => 'S',  // Permitir mais de uma turma por sala - tipo: char(1)                                 
+            );
+            
+            try {
+                    $cod_ensino = $this->db_ecidade->insert('escola.cursoescola', $cursoescola);
+                    $this->showMessage('Curso vinculado a escola');
+
+            } catch (Zend_Db_Exception $e){
+                    $this->showMessage($e->getMessage(),2);
+                    exit;
+            }
+        }
+        
+    }
    
     public function addServidor() {
         
@@ -774,5 +809,417 @@ class Migrador
          
           $result = $this->db_ieducar->fetchAll($select);
          
+    }
+    
+    public function addCalendarioLetivo(){
+        
+        // Select pmieducar.ano_letivo_modulo
+        $select = new Zend_Db_Select($this->db_ieducar);
+        $select->from(array('a' => 'ano_letivo_modulo'),  array('ref_ano', 'ref_ref_cod_escola', 'sequencial', 'ref_cod_modulo', 'data_inicio', 'data_fim', ),'pmieducar')
+                ->order(array('ref_ano','ref_ref_cod_escola','sequencial'));
+        $result = $this->db_ieducar->fetchAll($select);
+        
+        $calendario = array();
+        $periodo = array();
+        
+        foreach ($result as $r) {            
+                     
+            if($r['sequencial'] == 1){
+                $ano = $r['ref_ano'];
+                $escola = $r['ref_ref_cod_escola'];
+                $data_inicio = $r['data_inicio'];
+                
+                $periodo[1]['ed53_i_periodoavaliacao'] = $r['sequencial'];
+                $periodo[1]['ed53_d_inicio'] = $r['data_inicio'];
+                $periodo[1]['ed53_d_fim'] = $r['data_fim'];
+            } 
+            if($r['sequencial'] == 2){                
+                
+                if( $ano == $r['ref_ano'] AND  $escola ==$r['ref_ref_cod_escola']){
+                    
+                    $periodo[2]['ed53_i_periodoavaliacao'] = $r['sequencial'];
+                    $periodo[2]['ed53_d_inicio'] = $r['data_inicio'];
+                    $periodo[2]['ed53_d_fim'] = $r['data_fim'];
+                }
+                
+            }
+            if($r['sequencial'] == 3){                
+                
+                if( $ano == $r['ref_ano'] AND  $escola ==$r['ref_ref_cod_escola'])   {
+                    
+                    $periodo[3]['ed53_i_periodoavaliacao'] = $r['sequencial'];
+                    $periodo[3]['ed53_d_inicio'] = $r['data_inicio'];
+                    $periodo[3]['ed53_d_fim'] = $r['data_fim'];
+                }
+                
+            }
+            
+            if($r['sequencial'] == 4){                
+                
+                if( $ano == $r['ref_ano'] AND  $escola ==$r['ref_ref_cod_escola']){
+                    
+                    $data_final = $r['data_fim']; 
+                    
+                    $periodo[4]['ed53_i_periodoavaliacao'] = $r['sequencial'];
+                    $periodo[4]['ed53_d_inicio'] = $r['data_inicio'];
+                    $periodo[4]['ed53_d_fim'] = $r['data_fim'];
+                    
+                    // calendario - Cadastro de Calendário Escolar 
+                    $proximo_codigo_calen = $this->db_ecidade->nextSequenceId('escola.calendario_ed52_i_codigo_seq');
+                    
+                    $calendario = array(
+                        'ed52_i_codigo' => $proximo_codigo_calen,  // Código - tipo: int8                                    
+                        'ed52_c_descr' => 'CALENDÁRIO ' . $ano ,  // Nome do Calendário - tipo: char(20)                                
+                        'ed52_i_ano' => $ano,  // Ano - tipo: int4                                    
+                        'ed52_d_inicio' => $data_inicio,  // Data Inicial - tipo: date                                    
+                        'ed52_d_fim' => $data_final,  // Data Final - tipo: date                                    
+                        'ed52_d_resultfinal' => $data_final,  // Data Resultado Final - tipo: date                                    
+                        'ed52_c_aulasabado' => 'N',  // Aula aos Sábados - tipo: char(1)                                 
+                        'ed52_i_diasletivos' => 0,  // Dias Letivos - tipo: int4                                    
+                        'ed52_i_semletivas' => 0,  // Semanas Letivas - tipo: int4                                    
+                        'ed52_i_calendant' => 0,  // Calendário Anterior - tipo: int4                                    
+                        'ed52_i_periodo' => 0,  // Período - tipo: int4                                    
+                        'ed52_c_passivo' => 'N',  // Passivo - tipo: char(1)                                 
+                        'ed52_i_duracaocal' => 1,  // Duração - tipo: int8        //Anual                             
+                    );
+                    
+                    //Configurando os períodos de avaliação com o calendário
+                    
+                    $periodo[1]['ed53_i_calendario'] = $proximo_codigo_calen;
+                    $periodo[2]['ed53_i_calendario'] = $proximo_codigo_calen;
+                    $periodo[3]['ed53_i_calendario'] = $proximo_codigo_calen;
+                    $periodo[4]['ed53_i_calendario'] = $proximo_codigo_calen;
+                   
+                    //Código calendárioescola
+                    $proximo_codigo = $this->db_ecidade->nextSequenceId('escola.calendarioescola_ed38_i_codigo_seq');
+                                        
+                    // calendarioescola - Calendários ligados a escola
+                    $calendarioescola = array(
+                        'ed38_i_codigo' => $proximo_codigo,  // Código - tipo: int8                                    
+                        'ed38_i_escola' => $escola + (int)$this->config->departamento->codigo_variacao,  // Escola - tipo: int8                                    
+                        'ed38_i_calendario' => $proximo_codigo_calen,  // Calendário - tipo: int8                                    
+                    );
+                    
+                    try {
+                        $this->db_ecidade->insert('escola.calendario', $calendario);
+                        $this->db_ecidade->insert('escola.calendarioescola', $calendarioescola);
+                        
+                        $periodo[1]['ed53_i_codigo']= $this->db_ecidade->nextSequenceId('escola.periodocalendario_ed53_i_codigo_seq');                        
+                        $this->db_ecidade->insert('escola.periodocalendario', $periodo[1]);
+                        
+                        $periodo[2]['ed53_i_codigo']= $this->db_ecidade->nextSequenceId('escola.periodocalendario_ed53_i_codigo_seq');                        
+                        $this->db_ecidade->insert('escola.periodocalendario', $periodo[2]);
+                        
+                        $periodo[3]['ed53_i_codigo']= $this->db_ecidade->nextSequenceId('escola.periodocalendario_ed53_i_codigo_seq');                        
+                        $this->db_ecidade->insert('escola.periodocalendario', $periodo[3]);
+                        
+                        $periodo[4]['ed53_i_codigo']= $this->db_ecidade->nextSequenceId('escola.periodocalendario_ed53_i_codigo_seq');                        
+                        $this->db_ecidade->insert('escola.periodocalendario', $periodo[4]);
+                        $this->showMessage('Calendário adicionado!');
+
+                    } catch (Zend_Db_Exception $e){
+                        $this->showMessage($e->getMessage(),2);
+                        exit;
+                    }
+                    
+                }
+                
+            }
+            
+        }
+       
+    }
+    public function addCalendarioLetivo2012(){
+        
+        // Select pmieducar.ano_letivo_modulo das escolas com previsão para encerrar o ano de 2011!
+        $select = new Zend_Db_Select($this->db_ieducar);
+        $select->from(array('a' => 'ano_letivo_modulo'),  array('ref_ano', 'ref_ref_cod_escola', 'sequencial', 'ref_cod_modulo', 'data_inicio', 'data_fim', ),'pmieducar')
+                ->order(array('ref_ref_cod_escola'))
+                ->where("ref_ano = 2011  and sequencial  = 4 and data_fim < '2011-12-31'");
+        $result = $this->db_ieducar->fetchAll($select);
+        
+        //Ano
+        $ano = 2012;
+        //Valores Definidos        
+        $periodo = array(); 
+        
+        $periodo[1]['ed53_i_periodoavaliacao'] = 1;
+        $periodo[1]['ed53_d_inicio'] = '2012-02-09';
+        $periodo[1]['ed53_d_fim'] = '2012-04-24';
+        
+        $periodo[2]['ed53_i_periodoavaliacao'] = 2;
+        $periodo[2]['ed53_d_inicio'] = '2012-04-25';
+        $periodo[2]['ed53_d_fim'] = '2012-07-06';
+        
+        $periodo[3]['ed53_i_periodoavaliacao'] = 3;
+        $periodo[3]['ed53_d_inicio'] = '2012-07-23';
+        $periodo[3]['ed53_d_fim'] = '2012-10-01';
+        
+        $periodo[4]['ed53_i_periodoavaliacao'] = 4;
+        $periodo[4]['ed53_d_inicio'] = '2012-10-02';
+        $periodo[4]['ed53_d_fim'] = '2012-12-17';
+        
+        foreach ($result as $r) {            
+                               
+                    // calendario - Cadastro de Calendário Escolar 
+                    $proximo_codigo_calen = $this->db_ecidade->nextSequenceId('escola.calendario_ed52_i_codigo_seq');
+                    
+                    $calendario = array(
+                        'ed52_i_codigo' => $proximo_codigo_calen,  // Código - tipo: int8                                    
+                        'ed52_c_descr' => 'CALENDÁRIO ' . $ano ,  // Nome do Calendário - tipo: char(20)                                
+                        'ed52_i_ano' => $ano,  // Ano - tipo: int4                                    
+                        'ed52_d_inicio' => $periodo[1]['ed53_d_inicio'],  // Data Inicial - tipo: date                                    
+                        'ed52_d_fim' => $periodo[4]['ed53_d_fim'],  // Data Final - tipo: date                                    
+                        'ed52_d_resultfinal' => $periodo[4]['ed53_d_fim'],  // Data Resultado Final - tipo: date                                    
+                        'ed52_c_aulasabado' => 'N',  // Aula aos Sábados - tipo: char(1)                                 
+                        'ed52_i_diasletivos' => 0,  // Dias Letivos - tipo: int4                                    
+                        'ed52_i_semletivas' => 0,  // Semanas Letivas - tipo: int4                                    
+                        'ed52_i_calendant' => 0,  // Calendário Anterior - tipo: int4                                    
+                        'ed52_i_periodo' => 0,  // Período - tipo: int4                                    
+                        'ed52_c_passivo' => 'N',  // Passivo - tipo: char(1)                                 
+                        'ed52_i_duracaocal' => 1,  // Duração - tipo: int8        //Anual                             
+                    );
+                    
+                    //Configurando os períodos de avaliação com o calendário
+                    
+                    $periodo[1]['ed53_i_calendario'] = $proximo_codigo_calen;
+                    $periodo[2]['ed53_i_calendario'] = $proximo_codigo_calen;
+                    $periodo[3]['ed53_i_calendario'] = $proximo_codigo_calen;
+                    $periodo[4]['ed53_i_calendario'] = $proximo_codigo_calen;
+                   
+                    //Código calendárioescola
+                    $proximo_codigo = $this->db_ecidade->nextSequenceId('escola.calendarioescola_ed38_i_codigo_seq');
+                                        
+                    // calendarioescola - Calendários ligados a escola
+                    $calendarioescola = array(
+                        'ed38_i_codigo' => $proximo_codigo,  // Código - tipo: int8                                    
+                        'ed38_i_escola' => $r['ref_ref_cod_escola'] + (int)$this->config->departamento->codigo_variacao,  // Escola - tipo: int8                                    
+                        'ed38_i_calendario' => $proximo_codigo_calen,  // Calendário - tipo: int8                                    
+                    );
+                    
+                    try {
+                        $this->db_ecidade->insert('escola.calendario', $calendario);
+                        $this->db_ecidade->insert('escola.calendarioescola', $calendarioescola);
+                        
+                        $periodo[1]['ed53_i_codigo']= $this->db_ecidade->nextSequenceId('escola.periodocalendario_ed53_i_codigo_seq');                        
+                        $this->db_ecidade->insert('escola.periodocalendario', $periodo[1]);
+                        
+                        $periodo[2]['ed53_i_codigo']= $this->db_ecidade->nextSequenceId('escola.periodocalendario_ed53_i_codigo_seq');                        
+                        $this->db_ecidade->insert('escola.periodocalendario', $periodo[2]);
+                        
+                        $periodo[3]['ed53_i_codigo']= $this->db_ecidade->nextSequenceId('escola.periodocalendario_ed53_i_codigo_seq');                        
+                        $this->db_ecidade->insert('escola.periodocalendario', $periodo[3]);
+                        
+                        $periodo[4]['ed53_i_codigo']= $this->db_ecidade->nextSequenceId('escola.periodocalendario_ed53_i_codigo_seq');                        
+                        $this->db_ecidade->insert('escola.periodocalendario', $periodo[4]);
+                        $this->showMessage('Calendário adicionado!');
+
+                    } catch (Zend_Db_Exception $e){
+                        $this->showMessage($e->getMessage(),2);
+                        exit;
+                    }
+                    
+                }
+                
+            }
+  
+       
+    public function addDisciplinas(){
+        
+        // modules.componente_curricular
+        $select = new Zend_Db_Select($this->db_ieducar);
+        $select->from(array('a' => 'componente_curricular'),  array('id', 'instituicao_id', 'area_conhecimento_id', 'nome', 'abreviatura', 'tipo_base'),'modules');
+        $result = $this->db_ieducar->fetchAll($select);
+      
+        foreach ($result as $r){
+            
+            // caddisciplina - Cadastro de Disciplinas
+            $caddisciplina = array(
+                'ed232_i_codigo' => $r['id'],  // Código - tipo: int8                                    
+                'ed232_c_descr' => Zend_Filter::filterStatic($r['nome'], 'FullStringToUpper'),  // Descrição - tipo: char(30)                                
+                'ed232_c_abrev' => Zend_Filter::filterStatic($r['abreviatura'], 'FullStringToUpper'),  // Abreviatura - tipo: char(10)                                
+                'ed232_i_codcenso' => 99,  // Código Censo - tipo: int4                                    
+            );
+            
+            try {
+                                
+                $this->db_ecidade->insert('escola.caddisciplina', $caddisciplina);
+                $this->showMessage('Disciplina adicionada!');
+
+            } catch (Zend_Db_Exception $e){
+                $this->showMessage($e->getMessage(),2);
+                exit;
+            }
+        }
+    }
+    
+    public function addBasesCurrigulares(){
+        
+        //Curso - Regular Ensino fundamental Anos
+        
+        $select = new Zend_Db_Select($this->db_ecidade);
+        $select->from(array('a' => 'cursoescola '), array('*'),'escola')
+                //Esola Pontes de Miranda - Configurada
+               ->where('ed71_i_escola <> 2088');
+        $result = $this->db_ieducar->fetchAll($select);
+        
+         $cursoescola = array(
+                'ed71_i_codigo' => $proximo_id,  // Código - tipo: int8                                    
+                'ed71_i_escola' => $cod_escola,  // Escola - tipo: int8                                    
+                'ed71_i_curso' => $r['ref_cod_curso'],  // Curso - tipo: int8                                    
+                'ed71_c_situacao' => $ativo,  // Ativo - tipo: char(1)                                 
+                'ed71_c_turmasala' => 'S',  // Permitir mais de uma turma por sala - tipo: char(1)                                 
+            );
+        foreach ($result as $r){
+            
+            switch ($r['ed71_i_curso']){
+                //ENSINO REGULAR - EDUCAÇÃO INFANTIL - CRECHE 
+                case 1 :
+                    break;
+                
+                //ENSINO REGULAR - EDUCAÇÃO INFANTIL - PRÉ-ESCOLA
+                case 2 :
+                    break;
+                
+                //ENSINO REGULAR - ENSINO FUNDAMENTAL - 9 ANOS / 1º AO 5º ANO
+                case 4 :
+                    break;
+                // base - Cadastro da Base Curricular
+                $base_cod = $this->db_ecidade->nextSequenceId('escola.base_ed31_i_codigo_seq'); 
+                $base = array(
+                    'ed31_i_codigo' => $base_cod,  // Código - tipo: int8                                    
+                    'ed31_i_curso' => $r['ed71_i_curso'],  // Curso - tipo: int8                                    
+                    'ed31_c_descr' => 'ANOS INICIAIS',  // Nome da Base - tipo: char(40)                                
+                    'ed31_c_turno' => 'DIURNO',  // Turno - tipo: char(20)                                
+                    'ed31_c_medfreq' => 'D',  // Frequência - tipo: char(1)                                 
+                    'ed31_c_contrfreq' => 'I',  // Controle de Frequência - tipo: char(1)                                 
+                    'ed31_t_obs' => '',  // Observações - tipo: text                                    
+                    'ed31_c_conclusao' => 'N',  // Base conclui curso - tipo: char(1)                                 
+                    'ed31_i_regimemat' => '1',  // Regime de Matrícula - tipo: int8                                    
+                    'ed31_c_ativo' => 'S',  // Ativa - tipo: char(1)                                 
+                    'ed31_c_matricula' => '',  // Regime de Matrícula - tipo: char(10)                                
+                );
+                
+                // escolabase - Ligação da base curricular na escola
+                $escolabase = array(
+                    'ed77_i_codigo' => '',  // Código - tipo: int8                                    
+                    'ed77_i_escola' => '',  // Escola - tipo: int8                                    
+                    'ed77_i_base' => '',  // Base - tipo: int8                                    
+                    'ed77_i_atolegal' => '',  // Ato Legal - tipo: int8                                    
+                    'ed77_i_basecont' => '',  // Base Continuação - tipo: int8                                    
+                );
+                
+                                // basemps - Cadastro das disciplinas da base curricular por série
+                $basemps = array(
+                'ed34_i_codigo' => '',  // Base - tipo: int8                                    
+                'ed34_i_base' => '',  // Base - tipo: int8                                    
+                'ed34_i_serie' => '',  // Etapa - tipo: int8                                    
+                'ed34_i_disciplina' => '',  // Disciplina - tipo: int8                                    
+                'ed34_i_qtdperiodo' => '',  // Quantidade de Períodos - tipo: int4                                    
+                'ed34_i_chtotal' => '',  // Carga Horária Total - tipo: int4                                    
+                'ed34_c_condicao' => '',  // Matrícula - tipo: char(2)                                 
+                'ed34_i_ordenacao' => '',  // Ordenar Disciplinas - tipo: int4                                    
+                );
+                
+                // baseserie - Série Inicial e Final da Base MPS
+                $baseserie = array(
+                    'ed87_i_codigo' => '',  // Base - tipo: int8                                    
+                    'ed87_i_serieinicial' => '',  // Etapa Inicial - tipo: int8                                    
+                    'ed87_i_seriefinal' => '',  // Etapa Final - tipo: int8                                    
+                );
+                                
+                //ENSINO REGULAR - ENSINO FUNDAMENTAL - 9 ANOS / 6º AO 9º ANO
+                case 26 :
+                    // base - Cadastro da Base Curricular
+                    $base_cod = $this->db_ecidade->nextSequenceId('escola.base_ed31_i_codigo_seq'); 
+                    $base = array(
+                        'ed31_i_codigo' => $base_cod,  // Código - tipo: int8                                    
+                        'ed31_i_curso' => $r['ed71_i_curso'],  // Curso - tipo: int8                                    
+                        'ed31_c_descr' => 'ANOS FINAIS',  // Nome da Base - tipo: char(40)                                
+                        'ed31_c_turno' => 'DIURNO',  // Turno - tipo: char(20)                                
+                        'ed31_c_medfreq' => 'P',  // Frequência - tipo: char(1)                                 
+                        'ed31_c_contrfreq' => 'I',  // Controle de Frequência - tipo: char(1)                                 
+                        'ed31_t_obs' => '',  // Observações - tipo: text                                    
+                        'ed31_c_conclusao' => 'S',  // Base conclui curso - tipo: char(1)                                 
+                        'ed31_i_regimemat' => '1',  // Regime de Matrícula - tipo: int8                                    
+                        'ed31_c_ativo' => 'S',  // Ativa - tipo: char(1)                                 
+                        'ed31_c_matricula' => '',  // Regime de Matrícula - tipo: char(10)                                
+                    );
+                    
+                    // baseserie - Série Inicial e Final da Base MPS
+                    $baseserie = array(
+                        'ed87_i_codigo' => $base_cod,  // Base - tipo: int8                                    
+                        'ed87_i_serieinicial' => 31,  // Etapa Inicial - tipo: int8                                    
+                        'ed87_i_seriefinal' => 65,  // Etapa Final - tipo: int8                                    
+                    );
+                    
+                    // escolabase - Ligação da base curricular na escola
+                    $escolabase_cod = $this->db_ecidade->nextSequenceId('escola.escolabase_ed77_i_codigo_seq'); 
+                    $escolabase = array(
+                        'ed77_i_codigo' => $escolabase_cod,  // Código - tipo: int8                                    
+                        'ed77_i_escola' => $r['ed71_i_escola'],  // Escola - tipo: int8                                    
+                        'ed77_i_base' => $base_cod,  // Base - tipo: int8                                    
+                        'ed77_i_atolegal' => '',  // Ato Legal - tipo: int8                                    
+                        'ed77_i_basecont' => '',  // Base Continuação - tipo: int8                                    
+                    );
+                    
+                    try {
+
+                        $this->db_ecidade->insert('escola.caddisciplina', $caddisciplina);
+                        $this->showMessage('Disciplina adicionada!');
+
+                    } catch (Zend_Db_Exception $e){
+                        
+                        $this->showMessage($e->getMessage(),2);
+                        exit;
+                    }
+                    $etapas('31','33','35','65');
+                    $disciplinas(
+                            array('d'=>'51','p'=>'4','o'=>'1'), //portugues
+                            array('d'=>'52','p'=>'4','o'=>'2'), //matemática
+                            array('d'=>'45','p'=>'3','o'=>'3'), //ciencias
+                            array('d'=>'49','p'=>'2','o'=>'4'), //historia
+                            array('d'=>'48','p'=>'2','o'=>'5'), //Geografia
+                            array('d'=>'44','p'=>'1','o'=>'6'), //Artes
+                            array('d'=>'46','p'=>'2','o'=>'7'), //Ed_Física
+                            array('d'=>'47','p'=>'1','o'=>'8'), //Ensino Religioso
+                            array('d'=>'50','p'=>'2','o'=>'9')  //Inglês
+                            );
+                    
+                    foreach ($etapas as $etapa){
+                        foreach ($disciplinas as $d){
+                                // basemps - Cadastro das disciplinas da base curricular por série
+                                $basemps_cod = $this->db_ecidade->nextSequenceId('escola.basemps_ed34_i_codigo_seq'); 
+                                $basemps = array(
+                                'ed34_i_codigo' => $basemps_cod,  // Base - tipo: int8                                    
+                                'ed34_i_base' => $base_cod,  // Base - tipo: int8                                    
+                                'ed34_i_serie' => $etapa,  // Etapa - tipo: int8                                    
+                                'ed34_i_disciplina' => $d['d'],  // Disciplina - tipo: int8                                    
+                                'ed34_i_qtdperiodo' => $d['p'],  // Quantidade de Períodos - tipo: int4                                    
+                                'ed34_i_chtotal' => 0,  // Carga Horária Total - tipo: int4                                    
+                                'ed34_c_condicao' => 'OB',  // Matrícula - tipo: char(2)                                 
+                                'ed34_i_ordenacao' => $d['o'],  // Ordenar Disciplinas - tipo: int4                                    
+                                );
+                            }
+                    }
+                    break;
+                
+                //ENSINO DE JOVENS E ADULTOS - EJA - EJA 1º SEGMENT..
+                case 23 :
+                    break;
+                
+                //ENSINO DE JOVENS E ADULTOS - EJA - EJA 2º SEGMENT..
+                case 24 :
+                    break;
+                
+                //ENSINO ESPECIAL - ENSINO DE JOVENS E ADULTOS - EJA - EJA 1º SEGMENT..
+                case 21 :
+                    break;
+                
+                //ENSINO ESPECIAL -ENSINO DE JOVENS E ADULTOS - EJA - EJA 2º SEGMENT..
+                case 22 :
+                    break;
+            }
+        }
     }
 }

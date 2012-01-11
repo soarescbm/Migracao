@@ -15,7 +15,13 @@ ieducar.db.params.password = "ieducar"
 ieducar.db.params.dbname = "i-educar_full"
 ieducar.db.params.charset = "latin1"
 
-
+; Configurações do banco de dados da Prefeitura
+arapiraca.db.adapter = "pdo_pgsql"
+arapiraca.db.params.host = "192.168.100.7"
+arapiraca.db.params.username = "postgres"
+arapiraca.db.params.password = "db#rprc9"
+arapiraca.db.params.dbname = "iptu2012"
+arapiraca.db.params.charset = "latin1"
 
 ; Configurações do banco de dados da Prefeitura
 ;arapiraca.db.adapter = "pdo_pgsql"
